@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Wallet, Target } from 'lucide-react';
 import { FinanceSummary, BehaviourType } from '@/types/finance';
+import { formatINR } from '@/lib/utils';
 
 interface SummaryCardsProps {
   summary: FinanceSummary;
@@ -20,7 +21,7 @@ const SummaryCards = ({ summary }: SummaryCardsProps) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Total Income</p>
-              <p className="text-2xl font-bold text-green-600">₹{summary.totalIncome.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-green-600">{formatINR(summary.totalIncome)}</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
               <TrendingUp className="h-6 w-6 text-green-600" />
@@ -34,7 +35,7 @@ const SummaryCards = ({ summary }: SummaryCardsProps) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Total Expenses</p>
-              <p className="text-2xl font-bold text-red-600">₹{summary.totalExpenses.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-red-600">{formatINR(summary.totalExpenses)}</p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
               <TrendingDown className="h-6 w-6 text-red-600" />
@@ -49,7 +50,7 @@ const SummaryCards = ({ summary }: SummaryCardsProps) => {
             <div>
               <p className="text-sm text-muted-foreground mb-1">Balance</p>
               <p className={`text-2xl font-bold ${summary.balance >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                ₹{summary.balance.toLocaleString()}
+                {formatINR(summary.balance)}
               </p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
