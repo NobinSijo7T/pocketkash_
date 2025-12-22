@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Transaction, FinanceSummary, ExpenseCategory, BehaviourType, Insight } from '@/types/finance';
+import { formatINR } from '@/lib/utils';
 
 interface FinanceContextType {
   transactions: Transaction[];
@@ -100,7 +101,7 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
         id: '2',
         type: 'leak',
         title: 'Food Money Leak Detected',
-        description: `You spent ₹${summary.categoryBreakdown.food} on food (${Math.round((summary.categoryBreakdown.food / summary.totalExpenses) * 100)}% of expenses). Consider cooking more at home.`,
+        description: `You spent ${formatINR(summary.categoryBreakdown.food)} on food (${Math.round((summary.categoryBreakdown.food / summary.totalExpenses) * 100)}% of expenses). Consider cooking more at home.`,
         icon: '🍔',
       });
     }
@@ -111,7 +112,7 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
         id: '3',
         type: 'saving',
         title: 'Great Savings Potential!',
-        description: `You have ₹${summary.balance} surplus. Consider starting a small recurring deposit or emergency fund.`,
+        description: `You have ${formatINR(summary.balance)} surplus. Consider starting a small recurring deposit or emergency fund.`,
         icon: '💰',
       });
     }

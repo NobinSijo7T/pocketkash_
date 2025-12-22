@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Trash2, TrendingUp, TrendingDown } from 'lucide-react';
 import { Transaction, ExpenseCategory, EmotionTag, IncomeSource } from '@/types/finance';
 import { format } from 'date-fns';
+import { formatINR } from '@/lib/utils';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -96,7 +97,7 @@ const TransactionList = ({ transactions, onDelete }: TransactionListProps) => {
                       transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
                     }`}
                   >
-                    {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
+                    {transaction.type === 'income' ? '+' : '-'}{formatINR(transaction.amount)}
                   </span>
                   <Button
                     variant="ghost"
