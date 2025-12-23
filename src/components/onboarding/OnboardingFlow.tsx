@@ -391,10 +391,22 @@ const OnboardingFlow = () => {
                     <Label htmlFor="dailyLimit">Daily Spending Limit (₹) *</Label>
                     <Input
                       id="dailyLimit"
-                      type="number"
-                      min={1}
-                      value={data.dailyLimit}
-                      onChange={(e) => updateData('dailyLimit', parseInt(e.target.value) || 100)}
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="e.g. 200"
+                      value={data.dailyLimit === 0 ? '' : String(data.dailyLimit)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || /^\d*$/.test(val)) {
+                          updateData('dailyLimit', val === '' ? 0 : parseInt(val, 10));
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (isNaN(val) || val < 0) {
+                          updateData('dailyLimit', 0);
+                        }
+                      }}
                     />
                     <p className="text-xs text-muted-foreground">This is the maximum you want to spend each day</p>
                   </div>
@@ -403,11 +415,22 @@ const OnboardingFlow = () => {
                     <Label htmlFor="weeklyLimit">Weekly Limit (₹) - Optional</Label>
                     <Input
                       id="weeklyLimit"
-                      type="number"
-                      min={0}
+                      type="text"
+                      inputMode="numeric"
                       placeholder="Leave empty for no limit"
-                      value={data.weeklyLimit || ''}
-                      onChange={(e) => updateData('weeklyLimit', parseInt(e.target.value) || 0)}
+                      value={data.weeklyLimit === 0 ? '' : String(data.weeklyLimit)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || /^\d*$/.test(val)) {
+                          updateData('weeklyLimit', val === '' ? 0 : parseInt(val, 10));
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (isNaN(val) || val < 0) {
+                          updateData('weeklyLimit', 0);
+                        }
+                      }}
                     />
                   </div>
 
@@ -415,11 +438,22 @@ const OnboardingFlow = () => {
                     <Label htmlFor="monthlyLimit">Monthly Limit (₹) - Optional</Label>
                     <Input
                       id="monthlyLimit"
-                      type="number"
-                      min={0}
+                      type="text"
+                      inputMode="numeric"
                       placeholder="Leave empty for no limit"
-                      value={data.monthlyLimit || ''}
-                      onChange={(e) => updateData('monthlyLimit', parseInt(e.target.value) || 0)}
+                      value={data.monthlyLimit === 0 ? '' : String(data.monthlyLimit)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || /^\d*$/.test(val)) {
+                          updateData('monthlyLimit', val === '' ? 0 : parseInt(val, 10));
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (isNaN(val) || val < 0) {
+                          updateData('monthlyLimit', 0);
+                        }
+                      }}
                     />
                   </div>
                 </div>
