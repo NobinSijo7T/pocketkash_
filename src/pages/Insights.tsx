@@ -1,9 +1,37 @@
+import { useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { useFinance } from '@/contexts/FinanceContext';
 import { useUser } from '@/contexts/UserContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { formatINR } from '@/lib/utils';
-import { Lightbulb, Target, TrendingUp, Brain, Zap, Heart, AlertTriangle, Sparkles } from 'lucide-react';
+import { useAIInsights } from '@/hooks/use-ai-insights';
+import { Lightbulb, Target, TrendingUp, Brain, Zap, Heart, AlertTriangle, Sparkles, Bot, RefreshCw, Loader2, PieChartIcon, BarChart3 } from 'lucide-react';
+
+// Color mappings for charts (defined outside component for stable references)
+const CATEGORY_COLORS: Record<string, string> = {
+  food: 'hsl(25, 95%, 53%)',       // orange
+  travel: 'hsl(200, 80%, 50%)',    // blue
+  shopping: 'hsl(280, 70%, 60%)',  // purple
+  entertainment: 'hsl(340, 80%, 55%)', // pink
+  others: 'hsl(210, 10%, 50%)',    // gray
+};
+
+const EMOTION_COLORS: Record<string, string> = {
+  need: 'hsl(142, 76%, 36%)',      // green
+  impulse: 'hsl(25, 95%, 53%)',    // orange
+  stress: 'hsl(0, 84%, 60%)',      // red
+  celebration: 'hsl(280, 70%, 60%)', // purple
+};
+
+const EMOTION_LABELS: Record<string, { label: string; color: string }> = {
+  need: { label: 'Essential Needs', color: 'text-green-600' },
+  impulse: { label: 'Impulse Buys', color: 'text-orange-500' },
+  stress: { label: 'Stress Spending', color: 'text-red-500' },
+  celebration: { label: 'Celebrations', color: 'text-purple-500' },
+};
 
 const Insights = () => {
   const { transactions, getSummary, getInsights } = useFinance();
@@ -11,6 +39,16 @@ const Insights = () => {
 
   const summary = getSummary();
   const insights = getInsights();
+
+  // Memoize data for AI insights to prevent unnecessary re-renders
+  const aiData = useMemo(() => ({
+    transactions,
+    summary,
+    userName: user?.name,
+  }), [transactions, summary, user?.name]);
+
+  // AI-powered insights using Gemma model via Bytez
+  const { loading: aiLoading, error: aiError, insight: aiInsight, refetch: refetchAI } = useAIInsights(aiData);
 
   // Behaviour analysis
   const behaviourDescriptions = {
@@ -59,6 +97,21 @@ const Insights = () => {
     celebration: { label: 'Celebrations', icon: Sparkles, color: 'text-purple-500' },
   };
 
+  // Chart configs
+  const categoryChartConfig = {
+    food: { label: 'Food', color: CATEGORY_COLORS.food },
+    travel: { label: 'Travel', color: CATEGORY_COLORS.travel },
+    shopping: { label: 'Shopping', color: CATEGORY_COLORS.shopping },
+    entertainment: { label: 'Entertainment', color: CATEGORY_COLORS.entertainment },
+    others: { label: 'Others', color: CATEGORY_COLORS.others },
+  };
+
+  const incomeExpenseConfig = {
+    income: { label: 'Income', color: 'hsl(var(--chart-1))' },
+    expenses: { label: 'Expenses', color: 'hsl(var(--chart-2))' },
+    balance: { label: 'Balance', color: 'hsl(var(--chart-3))' },
+  };
+
   // Top spending category
   const topCategory = Object.entries(summary.categoryBreakdown)
     .sort(([, a], [, b]) => b - a)[0];
@@ -70,6 +123,36 @@ const Insights = () => {
     often: 'You spend frequently. Consider consolidating purchases.',
     always: 'You spend very frequently. This might lead to overspending.',
   };
+
+  // Chart data for category breakdown (Pie Chart)
+  const categoryChartData = useMemo(() => {
+    return Object.entries(summary.categoryBreakdown)
+      .filter(([, amount]) => amount > 0)
+      .map(([category, amount]) => ({
+        name: category.charAt(0).toUpperCase() + category.slice(1),
+        value: amount,
+        fill: CATEGORY_COLORS[category] || '#8884d8',
+      }));
+  }, [summary.categoryBreakdown]);
+
+  // Chart data for income vs expense (Bar Chart)
+  const incomeExpenseData = useMemo(() => [
+    { name: 'Income', amount: summary.totalIncome, fill: 'hsl(var(--chart-1))' },
+    { name: 'Expenses', amount: summary.totalExpenses, fill: 'hsl(var(--chart-2))' },
+    { name: 'Balance', amount: Math.max(0, summary.balance), fill: 'hsl(var(--chart-3))' },
+  ], [summary]);
+
+  // Chart data for emotion-based spending
+  const emotionChartData = useMemo(() => {
+    return Object.entries(emotionStats)
+      .filter(([, stats]) => stats.total > 0)
+      .map(([emotion, stats]) => ({
+        name: EMOTION_LABELS[emotion]?.label || emotion,
+        amount: stats.total,
+        count: stats.count,
+        fill: EMOTION_COLORS[emotion] || '#8884d8',
+      }));
+  }, [emotionStats]);
 
   return (
     <AppLayout>
@@ -123,6 +206,118 @@ const Insights = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Income vs Expenses Bar Chart */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Income vs Expenses
+            </CardTitle>
+            <CardDescription>Overview of your financial flow</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={incomeExpenseConfig} className="h-[200px] w-full">
+              <BarChart data={incomeExpenseData} layout="vertical" margin={{ left: 10, right: 30 }}>
+                <XAxis type="number" tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 12 }} />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value) => formatINR(value as number)}
+                    />
+                  }
+                />
+                <Bar dataKey="amount" radius={[0, 4, 4, 0]}>
+                  {incomeExpenseData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        {/* Category Breakdown Pie Chart */}
+        {categoryChartData.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <PieChartIcon className="h-5 w-5 text-primary" />
+                Spending by Category
+              </CardTitle>
+              <CardDescription>Where your money goes</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer config={categoryChartConfig} className="h-[250px] w-full">
+                <PieChart>
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) => formatINR(value as number)}
+                      />
+                    }
+                  />
+                  <Pie
+                    data={categoryChartData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {categoryChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <ChartLegend content={<ChartLegendContent />} />
+                </PieChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Emotion-Based Spending Chart */}
+        {emotionChartData.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                Emotion-Driven Spending
+              </CardTitle>
+              <CardDescription>How emotions affect your wallet</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer config={categoryChartConfig} className="h-[200px] w-full">
+                <BarChart data={emotionChartData} margin={{ left: 10, right: 30 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tickFormatter={(value) => `₹${value}`} />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value, name, item) => (
+                          <span>
+                            {formatINR(value as number)}
+                            <span className="text-muted-foreground ml-2">({item.payload.count} txns)</span>
+                          </span>
+                        )}
+                      />
+                    }
+                  />
+                  <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
+                    {emotionChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Top Spending Category */}
         {topCategory && (
@@ -226,6 +421,100 @@ const Insights = () => {
                   <p className="text-sm text-muted-foreground">{insight.description}</p>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* AI-Powered Insights Card */}
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Bot className="h-5 w-5 text-primary" />
+                AI Financial Coach
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={refetchAI}
+                disabled={aiLoading}
+                className="h-8 px-2"
+              >
+                {aiLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <CardDescription>
+              Personalized advice powered by AI based on your spending patterns
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {aiLoading && !aiInsight ? (
+              <div className="flex items-center justify-center py-8 gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Analyzing your finances...</span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {aiError && (
+                  <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 mb-2">
+                    Using offline insights (API unavailable)
+                  </div>
+                )}
+                <div className="bg-background/80 rounded-lg p-4">
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                    {aiInsight || 'Add some transactions to get AI-powered insights!'}
+                  </p>
+                </div>
+                {aiLoading && aiInsight && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Refreshing insights...
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Flagged Transactions Summary */}
+        {transactions.filter(t => t.emotionTag === 'impulse' || t.emotionTag === 'stress').length > 0 && (
+          <Card className="border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-transparent">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2 text-orange-600">
+                <AlertTriangle className="h-5 w-5" />
+                Flagged Spending
+              </CardTitle>
+              <CardDescription>
+                Transactions tagged as impulse or stress-driven
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {transactions
+                .filter(t => t.emotionTag === 'impulse' || t.emotionTag === 'stress')
+                .slice(0, 5)
+                .map(t => (
+                  <div key={t.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg text-sm">
+                    <div className="flex items-center gap-2">
+                      {t.emotionTag === 'impulse' ? (
+                        <Zap className="h-4 w-4 text-orange-500" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                      )}
+                      <span>{t.description || t.category || 'Expense'}</span>
+                      <span className="text-xs text-muted-foreground capitalize">({t.emotionTag})</span>
+                    </div>
+                    <span className="font-medium text-destructive">{formatINR(t.amount)}</span>
+                  </div>
+                ))}
+              {transactions.filter(t => t.emotionTag === 'impulse' || t.emotionTag === 'stress').length > 5 && (
+                <p className="text-xs text-muted-foreground text-center pt-1">
+                  +{transactions.filter(t => t.emotionTag === 'impulse' || t.emotionTag === 'stress').length - 5} more flagged transactions
+                </p>
+              )}
             </CardContent>
           </Card>
         )}

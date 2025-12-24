@@ -14,20 +14,8 @@ const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// Sample data for demo
-const sampleTransactions: Transaction[] = [
-  { id: '1', type: 'income', amount: 5000, source: 'allowance', date: new Date('2024-01-01'), description: 'Monthly allowance' },
-  { id: '2', type: 'expense', amount: 150, category: 'food', emotionTag: 'need', date: new Date('2024-01-02'), description: 'Lunch' },
-  { id: '3', type: 'expense', amount: 500, category: 'shopping', emotionTag: 'impulse', date: new Date('2024-01-03'), description: 'New headphones' },
-  { id: '4', type: 'expense', amount: 80, category: 'travel', emotionTag: 'need', date: new Date('2024-01-04'), description: 'Metro card' },
-  { id: '5', type: 'expense', amount: 200, category: 'entertainment', emotionTag: 'celebration', date: new Date('2024-01-05'), description: 'Movie night' },
-  { id: '6', type: 'expense', amount: 120, category: 'food', emotionTag: 'stress', date: new Date('2024-01-06'), description: 'Late night snacks' },
-  { id: '7', type: 'income', amount: 2000, source: 'side-income', date: new Date('2024-01-07'), description: 'Freelance work' },
-  { id: '8', type: 'expense', amount: 350, category: 'food', emotionTag: 'impulse', date: new Date('2024-01-08'), description: 'Cafe visit' },
-];
-
 export const FinanceProvider = ({ children }: { children: ReactNode }) => {
-  const [transactions, setTransactions] = useState<Transaction[]>(sampleTransactions);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   const addTransaction = (transaction: Omit<Transaction, 'id'>) => {
     setTransactions(prev => [...prev, { ...transaction, id: generateId() }]);
@@ -38,7 +26,10 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getSummary = (): FinanceSummary => {
+    // Calculate income from transactions only
     const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    
+    // Calculate expenses from transactions only
     const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
     
     const categoryBreakdown: Record<ExpenseCategory, number> = {
