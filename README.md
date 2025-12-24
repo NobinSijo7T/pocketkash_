@@ -242,12 +242,26 @@ nvm use --lts
    npm install
    ```
 
-4. **Start the development server**
+4. **Set up environment variables**
+   
+   Copy the example environment file and add your Groq API key:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` and add your Groq API key:
+   ```env
+   VITE_GROQ_API_KEY=your_groq_api_key_here
+   ```
+   
+   Get your API key from [Groq Cloud Console](https://console.groq.com/)
+
+5. **Start the development server**
    ```bash
    npm run dev
    ```
 
-5. **Open your browser**
+6. **Open your browser**
    
    Navigate to `http://localhost:5173` (or the URL shown in terminal)
 
@@ -262,6 +276,54 @@ nvm use --lts
 | `npm run build:dev` | Build for development |
 | `npm run preview` | Preview production build locally |
 | `npm run lint` | Run ESLint for code quality |
+
+---
+
+## 🚀 Deploy to Vercel
+
+### Quick Deploy
+
+1. **Push your code to GitHub** (already done!)
+
+2. **Import to Vercel**
+   - Go to [Vercel](https://vercel.com/)
+   - Click "Add New Project"
+   - Import your `pocketkash_` repository
+   - Vercel will auto-detect it as a Vite project
+
+3. **Add Environment Variables**
+   
+   In your Vercel project settings, add:
+   ```
+   VITE_GROQ_API_KEY = your_groq_api_key_here
+   ```
+   
+   Steps:
+   - Go to Project Settings → Environment Variables
+   - Add variable name: `VITE_GROQ_API_KEY`
+   - Add your Groq API key value
+   - Select all environments (Production, Preview, Development)
+   - Click "Save"
+
+4. **Deploy**
+   - Click "Deploy"
+   - Wait for build to complete
+   - Your app will be live at `your-project.vercel.app`
+
+### Deploy via CLI
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy
+vercel
+
+# Deploy to production
+vercel --prod
+```
+
+**Important**: Make sure to add the `VITE_GROQ_API_KEY` environment variable in Vercel dashboard before deploying!
 
 ---
 
