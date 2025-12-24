@@ -8,6 +8,7 @@ import { useUser } from '@/contexts/UserContext';
 import { formatINR } from '@/lib/utils';
 import { MessageCircle, X, Send, Bot, User, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Groq from 'groq-sdk';
 
 interface Message {
   id: string;
@@ -37,8 +38,7 @@ const AIChatbot = () => {
     }
   }, [messages]);
 
-  const generateResponse = (question: string): string => {
-    const lowerQ = question.toLowerCase();
+  const generateResponse = async (question: string): Promise<string> => {
     const summary = getSummary();
 
     // Today's data
@@ -59,77 +59,56 @@ const AIChatbot = () => {
     // Top category
     const topCategory = Object.entries(summary.categoryBreakdown).sort(([, a], [, b]) => b - a)[0];
 
-    // Response logic
-    if (lowerQ.includes('how much') && (lowerQ.includes('spent') || lowerQ.includes('spend'))) {
-      if (lowerQ.includes('today')) {
-        return `You've spent ${formatINR(spentToday)} today. ${remainingToday > 0 ? `You have ${formatINR(remainingToday)} left within your daily limit.` : 'You\'ve exceeded your daily limit!'}`;
-      }
-      return `Your total expenses so far are ${formatINR(summary.totalExpenses)}. Your balance is ${formatINR(summary.balance)}.`;
-    }
+    try {
+      // Build context for Groq API
+      const context = `
+User: ${user?.name || 'User'}
+Question: ${question}
 
-    if (lowerQ.includes('why') && lowerQ.includes('overspend')) {
-      const reasons = [];
-      if (impulseSpending > summary.totalExpenses * 0.2) {
-        reasons.push(`impulse purchases (${formatINR(impulseSpending)})`);
-      }
-      if (stressSpending > summary.totalExpenses * 0.1) {
-        reasons.push(`stress-related spending (${formatINR(stressSpending)})`);
-      }
-      if (topCategory && topCategory[1] > summary.totalExpenses * 0.4) {
-        reasons.push(`high ${topCategory[0]} expenses (${formatINR(topCategory[1])})`);
-      }
-      if (reasons.length > 0) {
-        return `Based on your data, you might be overspending due to: ${reasons.join(', ')}. Try to be mindful of these patterns!`;
-      }
-      return "I don't see major overspending patterns. Keep tracking your expenses to get better insights!";
-    }
+Financial Data:
+- Total Expenses: ${formatINR(summary.totalExpenses)}
+- Total Income: ${formatINR(summary.totalIncome)}
+- Balance: ${formatINR(summary.balance)}
+- Spending Today: ${formatINR(spentToday)}
+- Daily Limit: ${formatINR(user?.dailyLimit || 0)}
+- Remaining Today: ${formatINR(remainingToday)}
+- Spending Behavior Type: ${summary.behaviourType}
+- Impulse Spending: ${formatINR(impulseSpending)}
+- Stress Spending: ${formatINR(stressSpending)}
+- Top Category: ${topCategory ? `${topCategory[0]} (${formatINR(topCategory[1])})` : 'N/A'}
+- Category Breakdown: ${Object.entries(summary.categoryBreakdown).map(([cat, amt]) => `${cat}: ${formatINR(amt)}`).join(', ')}
+- Recent Transactions: ${transactions.slice(-5).map(t => `${t.category}: ${formatINR(t.amount)} (${t.emotionTag || 'normal'})`).join(', ')}`;
 
-    if (lowerQ.includes('save') || lowerQ.includes('saving')) {
-      return `Here are some tips based on your spending:\n\n1. ${topCategory ? `You spend most on ${topCategory[0]}. Try reducing it by 20%.` : 'Track all expenses to find where to cut.'}\n2. ${impulseSpending > 0 ? 'Your impulse spending is ' + formatINR(impulseSpending) + '. Use the 24-hour rule before buying.' : 'Great job avoiding impulse purchases!'}\n3. Set a "no-spend" day once a week.\n4. Before buying, ask: "Do I need this or want this?"`;
-    }
+      const groq = new Groq({
+        apiKey: import.meta.env.VITE_GROQ_API_KEY,
+        dangerouslyAllowBrowser: true
+      });
 
-    if (lowerQ.includes('where') && lowerQ.includes('money') && lowerQ.includes('go')) {
-      const categories = Object.entries(summary.categoryBreakdown)
-        .sort(([, a], [, b]) => b - a)
-        .map(([cat, amt]) => `${cat}: ${formatINR(amt)}`)
-        .join('\n');
-      return `Here's where your money is going:\n\n${categories}\n\nTotal spent: ${formatINR(summary.totalExpenses)}`;
-    }
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content: "You are PocketKash AI, a friendly and helpful financial assistant for an expense tracking app. Answer user questions about their finances using the provided data. Be conversational, supportive, and provide actionable advice. Keep responses concise (2-4 sentences unless more detail is needed). Use the INR amounts provided in the context. If greeting, be warm and personal."
+          },
+          {
+            role: "user",
+            content: context
+          }
+        ],
+        temperature: 0.8,
+        max_completion_tokens: 400,
+        top_p: 1
+      });
 
-    if (lowerQ.includes('limit') || lowerQ.includes('budget')) {
-      return `Your current limits:\n• Daily: ${formatINR(user?.dailyLimit || 0)}\n• Weekly: ${user?.weeklyLimit ? formatINR(user.weeklyLimit) : 'Not set'}\n• Monthly: ${user?.monthlyLimit ? formatINR(user.monthlyLimit) : 'Not set'}\n\nYou can update these in your Profile settings.`;
+      return completion.choices[0]?.message?.content || "I'm having trouble generating a response. Please try again!";
+    } catch (error) {
+      console.error('Groq API error:', error);
+      return "I'm having trouble connecting to the AI service. Please check your internet connection and try again.";
     }
-
-    if (lowerQ.includes('behaviour') || lowerQ.includes('behavior') || lowerQ.includes('type')) {
-      const behaviourTypes = {
-        planned: "You're a Planned Spender! You think before spending and manage money wisely. Keep it up!",
-        impulsive: "You tend to be an Impulsive Spender. Try waiting 24 hours before making non-essential purchases.",
-        'frequent-small': "You're a Frequent Small Spender. Those coffee runs and snacks add up! Try tracking every small expense.",
-      };
-      return behaviourTypes[summary.behaviourType];
-    }
-
-    if (lowerQ.includes('impulse')) {
-      return impulseSpending > 0
-        ? `You've spent ${formatINR(impulseSpending)} on impulse purchases. That's ${Math.round((impulseSpending / summary.totalExpenses) * 100)}% of your total spending. Try the 24-hour rule: wait a day before buying non-essentials.`
-        : "Great news! You haven't logged any impulse purchases. Keep being mindful with your spending!";
-    }
-
-    if (lowerQ.includes('stress')) {
-      return stressSpending > 0
-        ? `You've spent ${formatINR(stressSpending)} during stressful moments. Consider healthier alternatives like exercise, talking to friends, or meditation when you feel stressed.`
-        : "You haven't logged stress-related spending. That's great for your wallet and wellbeing!";
-    }
-
-    if (lowerQ.includes('hello') || lowerQ.includes('hi') || lowerQ.includes('hey')) {
-      return `Hello${user?.name ? `, ${user.name}` : ''}! I'm here to help you understand your spending and save better. What would you like to know?`;
-    }
-
-    // Default response
-    return "I can help you with:\n• How much you've spent (today/total)\n• Why you might be overspending\n• Where your money is going\n• Saving tips\n• Your spending behaviour type\n• Budget limits\n\nTry asking one of these!";
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
 
     const userMessage: Message = {
@@ -142,17 +121,26 @@ const AIChatbot = () => {
     setInput('');
     setIsTyping(true);
 
-    // Simulate typing delay
-    setTimeout(() => {
-      const response = generateResponse(userMessage.content);
+    // Get AI response
+    try {
+      const response = await generateResponse(userMessage.content);
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: response,
       };
       setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: "Sorry, I encountered an error. Please try again!",
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 500 + Math.random() * 500);
+    }
   };
 
   return (

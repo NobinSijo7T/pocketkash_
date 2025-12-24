@@ -1,13 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Bytez from 'bytez.js';
 import { Transaction, FinanceSummary } from '@/types/finance';
 import { formatINR } from '@/lib/utils';
-
-const BYTEZ_API_KEY = '16cf973b5ca4c99c522d56d71331bc43';
-
-// Global lock to ensure only 1 API call at a time (Bytez free tier limit)
-let isApiCallInProgress = false;
-const pendingCallbacks: (() => void)[] = [];
+import Groq from 'groq-sdk';
 
 interface AIInsightResult {
   loading: boolean;
@@ -20,46 +14,6 @@ interface FinanceData {
   transactions: Transaction[];
   summary: FinanceSummary;
   userName?: string;
-}
-
-// Build a compact prompt for faster inference
-function buildPrompt(data: FinanceData): string {
-  const { transactions, summary, userName } = data;
-  
-  // Get emotion-tagged expenses (flagged transactions)
-  const flaggedExpenses = transactions.filter(
-    t => t.type === 'expense' && (t.emotionTag === 'impulse' || t.emotionTag === 'stress')
-  );
-  
-  // Category breakdown as compact string
-  const categoryBreakdown = Object.entries(summary.categoryBreakdown)
-    .filter(([, amount]) => amount > 0)
-    .map(([cat, amount]) => `${cat}: ${formatINR(amount)}`)
-    .join(', ');
-
-  // Emotion breakdown
-  const emotionBreakdown: Record<string, number> = {};
-  transactions.filter(t => t.type === 'expense' && t.emotionTag).forEach(t => {
-    emotionBreakdown[t.emotionTag!] = (emotionBreakdown[t.emotionTag!] || 0) + t.amount;
-  });
-  const emotionSummary = Object.entries(emotionBreakdown)
-    .map(([tag, amount]) => `${tag}: ${formatINR(amount)}`)
-    .join(', ');
-
-  const prompt = `You are a personal finance coach. Analyze this spending data and give 2-3 brief, actionable tips (max 150 words total).
-
-User: ${userName || 'User'}
-Total Income: ${formatINR(summary.totalIncome)}
-Total Expenses: ${formatINR(summary.totalExpenses)}
-Balance: ${formatINR(summary.balance)}
-Spending Style: ${summary.behaviourType}
-Category Breakdown: ${categoryBreakdown || 'None'}
-Emotion-Based Spending: ${emotionSummary || 'None'}
-Flagged (Impulse/Stress) Transactions: ${flaggedExpenses.length} totaling ${formatINR(flaggedExpenses.reduce((s, t) => s + t.amount, 0))}
-
-Give personalized advice focusing on their spending patterns and flagged emotional spending. Be encouraging but direct. Format as bullet points.`;
-
-  return prompt;
 }
 
 // Generate a simple hash for cache invalidation
@@ -75,7 +29,6 @@ export function useAIInsights(data: FinanceData): AIInsightResult {
   const [insight, setInsight] = useState<string | null>(null);
   
   const lastHashRef = useRef<string>('');
-  const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -86,12 +39,6 @@ export function useAIInsights(data: FinanceData): AIInsightResult {
     if (!forceRefetch && currentHash === lastHashRef.current && insight) {
       return;
     }
-
-    // Cancel any in-flight request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
 
     // Skip if no transactions
     if (data.transactions.length === 0) {
@@ -106,77 +53,50 @@ export function useAIInsights(data: FinanceData): AIInsightResult {
     setError(null);
     lastFetchTimeRef.current = Date.now();
 
-    // Wait for global API lock (only 1 concurrent request allowed)
-    if (isApiCallInProgress) {
-      // Queue this request to run after current one completes
-      await new Promise<void>((resolve) => {
-        pendingCallbacks.push(resolve);
-      });
-    }
-    
-    isApiCallInProgress = true;
-
     try {
-      const sdk = new Bytez(BYTEZ_API_KEY);
-      // Using gemma-3-1b-it for faster inference (smaller model)
-      const model = sdk.model('google/gemma-3-1b-it');
-      
-      const prompt = buildPrompt(data);
-      
-      const { error: apiError, output } = await model.run([
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ]);
+      // Using Groq Cloud API for AI insights
+      const groq = new Groq({
+        apiKey: import.meta.env.VITE_GROQ_API_KEY,
+        dangerouslyAllowBrowser: true
+      });
 
-      if (apiError) {
-        throw new Error(typeof apiError === 'string' ? apiError : 'AI service error');
-      }
+      const context = `
+User's Financial Summary:
+- Total Expenses: ${formatINR(data.summary.totalExpenses)}
+- Total Income: ${formatINR(data.summary.totalIncome)}
+- Balance: ${formatINR(data.summary.balance)}
+- Spending Behavior: ${data.summary.behaviourType}
+- Recent transactions: ${data.transactions.slice(-5).map(t => `${t.category}: ${formatINR(t.amount)} (${t.emotionTag || 'normal'})`).join(', ')}
+- Category breakdown: ${Object.entries(data.summary.categoryBreakdown).map(([cat, amt]) => `${cat}: ${formatINR(amt)}`).join(', ')}
 
-      // Extract the text response
-      let responseText = '';
-      if (typeof output === 'string') {
-        responseText = output;
-      } else if (Array.isArray(output) && output.length > 0) {
-        // Handle array response format
-        const lastMessage = output[output.length - 1];
-        if (typeof lastMessage === 'object' && lastMessage !== null && 'content' in lastMessage) {
-          responseText = String(lastMessage.content);
-        } else if (typeof lastMessage === 'string') {
-          responseText = lastMessage;
-        }
-      } else if (output && typeof output === 'object') {
-        // Handle object response
-        const outputObj = output as Record<string, unknown>;
-        responseText = String(outputObj.content || outputObj.text || JSON.stringify(output));
-      }
+Provide 2-3 bullet points of personalized financial insights and actionable tips for ${data.userName || 'the user'}. Be encouraging and specific.`;
 
-      if (responseText) {
-        setInsight(responseText.trim());
-        lastHashRef.current = currentHash;
-      } else {
-        throw new Error('Empty response from AI');
-      }
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful financial advisor for PocketKash, an expense tracking app. Provide brief, actionable insights based on user's spending data. Keep responses concise (2-3 bullet points) and encouraging."
+          },
+          {
+            role: "user",
+            content: context
+          }
+        ],
+        temperature: 0.7,
+        max_completion_tokens: 300,
+        top_p: 1
+      });
+
+      const aiInsight = completion.choices[0]?.message?.content || generateFallbackInsight(data);
+      setInsight(aiInsight);
+      lastHashRef.current = currentHash;
     } catch (err: unknown) {
-      // Don't set error if request was aborted
       const error = err as Error;
-      if (error?.name === 'AbortError') return;
-      
       console.error('AI Insights error:', error);
-      setError(error?.message || 'Failed to generate AI insights');
-      
-      // Provide fallback insight based on local data
-      const fallback = generateFallbackInsight(data);
-      setInsight(fallback);
+      setError(error?.message || 'Failed to generate insights');
     } finally {
       setLoading(false);
-      // Release the global lock and trigger next queued request
-      isApiCallInProgress = false;
-      const nextCallback = pendingCallbacks.shift();
-      if (nextCallback) {
-        nextCallback();
-      }
     }
   }, [data, insight]);
 
@@ -197,7 +117,6 @@ export function useAIInsights(data: FinanceData): AIInsightResult {
     }, REFRESH_INTERVAL);
     
     return () => {
-      abortControllerRef.current?.abort();
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }

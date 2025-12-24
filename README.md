@@ -49,6 +49,32 @@
 
 ---
 
+## 🤖 AI-Powered Features
+
+PocketKash leverages **Groq Cloud** with **Meta's Llama 3.3 (70B Versatile)** model to provide intelligent financial insights and conversational assistance.
+
+### AI Capabilities
+
+| Feature | Technology | Description |
+|---------|-----------|-------------|
+| 💬 **AI Chatbot** | Groq Cloud API | Natural language conversations about your finances |
+| 🧠 **Smart Insights** | Llama 3.3 70B | Personalized spending analysis and recommendations |
+| 📊 **Pattern Recognition** | AI-powered | Identifies spending patterns and money leaks |
+| 💡 **Actionable Tips** | Context-aware | Real-time suggestions based on your transaction data |
+
+### AI Integration Details
+
+- **Provider**: Groq Cloud
+- **Model**: `llama-3.3-70b-versatile` (Meta Llama)
+- **Features**:
+  - Real-time financial advice
+  - Contextual spending insights
+  - Behavioral pattern analysis
+  - Natural conversation flow
+  - Personalized saving recommendations
+
+---
+
 ## 🏗 Architecture
 
 ```
@@ -122,7 +148,11 @@ User Action → Component → Context/Hook → State Update → Re-render
 | **react-hook-form** | ^7.61.1 | Performant form management |
 | **@hookform/resolvers** | ^3.10.0 | Validation resolvers |
 | **zod** | ^3.25.76 | TypeScript-first schema validation |
-
+### AI & Machine Learning
+| Package | Version | Purpose |
+|---------|---------|---------||
+| **groq-sdk** | ^0.8.1 | Groq Cloud API client for AI-powered insights |
+| **Model** | llama-3.3-70b-versatile | Meta's Llama model for natural language processing |
 ### Utilities
 | Package | Version | Purpose |
 |---------|---------|---------|

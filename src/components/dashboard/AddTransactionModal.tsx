@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,6 +60,9 @@ const AddTransactionModal = ({ open, onClose, onAdd }: AddTransactionModalProps)
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add Transaction</DialogTitle>
+          <DialogDescription>
+            Track your income or expenses with details like category, date, and emotional context.
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs value={type} onValueChange={(v) => setType(v as 'income' | 'expense')}>
